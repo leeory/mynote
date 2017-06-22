@@ -1,0 +1,21 @@
+Sql Servier 常用语法及函数:
+  1,分页:index = pageSize*(pageNo-1)
+        end = index+pageSize
+        select * from (
+             select *,ROW_NUMBER() OVER (ORDER BY id) as rank from table_name
+        )  as t where t.rank > index and  t.rank <= end
+  2,日期格式化:CONVERT(VARCHAR(10),GETDATE(),120)   --格式:yyyy-MM-dd
+  3,分类统计:
+    SELECT s.org_name ssdq,
+    SUM(case WHEN t.sb_code='1' THEN 1 ELSE 0 END) AS 'cjr', --残疾人
+    SUM(case WHEN t.sb_code='2' THEN 1  ELSE 0 END) AS 'tkh', --特困户
+    SUM(case WHEN t.sb_code='3' THEN 1 ELSE 0 END) AS 'tklr', --特困老人
+    SUM(case WHEN t.sjzt_code='1' THEN 1 ELSE 0 END) AS 'wsb', --未上报
+    SUM(case WHEN t.sjzt_code='2' THEN 1  ELSE 0 END) AS 'dsp', --待审批
+    SUM(case WHEN t.sjzt_code='3' THEN 1 ELSE 0 END) AS 'ysp', -- 已审批
+    SUM(case WHEN t.sjzt_code='4' THEN 1 ELSE 0 END) AS 'ysh'  --已审核
+    FROM t_csjz_apply t
+    LEFT JOIN s_org s
+    ON t.ssdq = s.org_code
+    GROUP BY s.org_name,t.sb_code,t.sjzt_code
+    
