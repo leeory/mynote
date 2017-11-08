@@ -77,3 +77,12 @@ $(function(){
 	}
 	
 });
+
+
+返回json格式数据:
+[
+{mc:"测试",djbm:"民政不",fzr:"我啊",adress:"地址地址",phone:"5023135",cws:"100"},
+{mc:"测试",djbm:"民政不",fzr:"我啊",adress:"地址地址",phone:"5023135",cws:"100"},
+{mc:"测试",djbm:"民政不",fzr:"我啊",adress:"地址地址",phone:"5023135",cws:"100"}
+]
+
