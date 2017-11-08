@@ -1,4 +1,4 @@
-/**Amap使用方法**/
+/**Amap使用方法:查询,标记地点**/
 $(function(){
 	$(".map_fwz_search").click(function(){
 		getFwzInfo();
