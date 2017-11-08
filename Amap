@@ -1,0 +1,79 @@
+/**Amap使用方法**/
+$(function(){
+	$(".map_fwz_search").click(function(){
+		getFwzInfo();
+	});
+	setTimeout(function(){
+		getFwzInfo();
+	},2000);
+	function getFwzInfo(){
+		var formData = $("#map_fwz_form").serializeObject({transcript:"overlay"});
+		$.ajax({
+			url:ctx+'/jjyl/fwzdtcx/getFwzInfo',
+			data:formData,
+			success:function(data){
+				map_init();
+				if(data != ''){
+					init_data(eval(data));
+				}
+			}
+		});
+	}
+	//map_init();
+	var map;
+	var marker = new Array();
+	var windowsArr = new Array();
+	function map_init(){
+		map = new AMap.Map("fwz_container", {resizeEnable: true,zoom: 14,center:[119.421003,32.393159]});
+	}
+	//加载页面描点
+	function init_data(data) {
+		var resultCount = data.length;
+		for (var i = 0; i < resultCount; i++) {
+			addmarker_(i, data[i]);
+		}
+		map.setFitView();
+		//添加marker&infowindow    
+		function addmarker_(i, d) {
+			var lngX = d.jd;
+			var latY = d.wd;
+			var markerOption = {
+					map:map,
+					position:new AMap.LngLat(lngX,latY)
+			};
+			var mar = new AMap.Marker(markerOption);          
+			marker.push(new AMap.LngLat(lngX,latY));
+			//实例化信息窗体
+			var infoWindow = new AMap.InfoWindow({
+				closeWhenClickMap:true,
+				isCustom: true,  //使用自定义窗体
+				content: createInfoWindow(d),
+				offset: new AMap.Pixel(16, -45)
+			});			    
+			windowsArr.push(infoWindow); 
+			var aa = function (e) {
+				infoWindow.open(map, mar.getPosition());
+			};
+			AMap.event.addListener(mar, "click", aa);
+		}
+		//构建自定义信息窗体
+		function createInfoWindow(d) {
+			var info = "<div class='amap-info-content amap-info-outer'>"
+				+"<div>" 
+				+"<div style='padding:0px 0px 0px 4px;'>"
+				+"<b>"+d.mc+"</b>"
+				+"<br>登记部门 :"+d.djbm
+				+"<br>法人或负责人:"+d.fzr
+				+"<br>地址:"+d.address
+				+"<br>联系电话:"+d.phone
+				+"<br>床位数:"+d.cws
+				+"</div>"
+				+"</div>"
+				+"</div>"
+				+"<a class='amap-info-close' href='javascript: void(0)' style='right: 5px;'></a>"
+				+"<div class='amap-info-sharp' style='height: 23px;left:10px;'></div>";
+			return info;
+		}
+	}
+	
+});
