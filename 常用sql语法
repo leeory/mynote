@@ -1,0 +1,96 @@
+1,SQL SERVER 高效分页语句:
+index = pageSize*(pageNo-1)
+end = index+pageSize
+select * from (
+       select *,ROW_NUMBER() OVER (ORDER BY id) as rank from t_table
+)  as t where t.rank > index and  t.rank <= end
+
+2,根据某个字段统计(case...when..用法)
+ //// 统计列
+SELECT SUM(tt.cjr) c_cjr,SUM(tt.tkh) c_tkh,SUM(tt.tklr) c_tklr,
+SUM(tt.hj1) c_hj1,SUM(tt.ysb) c_ysb,SUM(tt.ysp) c_ysp,
+SUM(tt.ysh) c_ysh,SUM(tt.hj2) c_hj2
+FROM
+(SELECT tmp.ssdq ,tmp.cjr,tmp.tkh,tmp.tklr,(tmp.cjr+tmp.tkh+tmp.tklr) AS hj1 ,
+ tmp.ysb,tmp.ysp,tmp.ysh,( tmp.ysb+tmp.ysp+tmp.ysh) AS hj2
+FROM 
+(SELECT s.org_name ssdq,
+SUM(case WHEN t.sb_code='1' THEN 1 ELSE 0 END) AS 'cjr', 
+SUM(case WHEN t.sb_code='2' THEN 1  ELSE 0 END) AS 'tkh', 
+SUM(case WHEN t.sb_code='3' THEN 1 ELSE 0 END) AS 'tklr', 
+SUM(case WHEN t.sjzt_code='2' THEN 1  ELSE 0 END) AS 'ysb', 
+SUM(case WHEN t.sjzt_code='3' THEN 1 ELSE 0 END) AS 'ysp', 
+SUM(case WHEN t.sjzt_code='4' THEN 1 ELSE 0 END) AS 'ysh' 
+FROM t_csjz_apply t
+LEFT JOIN s_org s
+ON t.ssdq = s.org_code
+WHERE  t.deleted= 0 
+GROUP BY s.org_name,t.sb_code,t.sjzt_code) tmp) tt
+
+3,统计
+SELECT s.org_name ssdq ,
+			sum(aa.lm_rs) lm_rs,sum(lm_fwje) lm_fwje,
+			sum(aa.gghq_rs) gghq_rs,sum(aa.gghq_fwje) gghq_fwje,
+			sum(aa.dnlr_rs) dnlr_rs,sum(aa.dnlr_fwje) dnlr_fwje,
+			sum(aa.lxgb_rs) lxgb_rs,sum(aa.lxgb_fwje) lxgb_fwje,
+			sum(aa.dblr_rs) dblr_rs,sum(aa.dblr_fwje) dblr_fwje,
+			sum(aa.jsjt_rs) jsjt_rs,sum(aa.jsjt_fwje) jsjt_fwje,
+			sum(aa.wblr_rs) wblr_rs,sum(aa.wblr_fwje) wblr_fwje,
+			sum(aa.gl_rs) gl_rs,sum(aa.gl_fwje) gl_fwje,
+			sum(aa.kzlb_rs) kzlb_rs,sum(aa.kzlb_fwje) kzlb_fwje     
+FROM
+ (SELECT tmp.ssdq,
+ CASE tmp.rylb_code WHEN 1 THEN 1 ELSE 0 END lm_rs ,
+ CASE tmp.rylb_code WHEN 1 THEN tmp.fwje ELSE 0 END lm_fwje,
+ CASE tmp.rylb_code WHEN 2 THEN 1 ELSE 0 END gghq_rs ,
+ CASE tmp.rylb_code WHEN 2 THEN tmp.fwje ELSE 0 END gghq_fwje,
+ CASE tmp.rylb_code WHEN 3 THEN 1 ELSE 0 END dnlr_rs ,
+ CASE tmp.rylb_code WHEN 3 THEN tmp.fwje ELSE 0 END dnlr_fwje,
+ CASE tmp.rylb_code WHEN 4 THEN 1 ELSE 0 END lxgb_rs ,
+ CASE tmp.rylb_code WHEN 4 THEN tmp.fwje ELSE 0 END lxgb_fwje,
+ CASE tmp.rylb_code WHEN 5 THEN 1 ELSE 0 END dblr_rs ,
+ CASE tmp.rylb_code WHEN 5 THEN tmp.fwje ELSE 0 END dblr_fwje,
+ CASE tmp.rylb_code WHEN 6 THEN 1 ELSE 0 END jsjt_rs ,
+ CASE tmp.rylb_code WHEN 6 THEN tmp.fwje ELSE 0 END jsjt_fwje,
+ CASE tmp.rylb_code WHEN 7 THEN 1 ELSE 0 END wblr_rs ,
+ CASE tmp.rylb_code WHEN 7 THEN tmp.fwje ELSE 0 END wblr_fwje,
+ CASE tmp.rylb_code WHEN 8 THEN 1 ELSE 0 END gl_rs ,
+ CASE tmp.rylb_code WHEN 8 THEN tmp.fwje ELSE 0 END gl_fwje,
+ CASE tmp.rylb_code WHEN 9 THEN 1 ELSE 0 END kzlb_rs ,
+ CASE tmp.rylb_code WHEN 9 THEN tmp.fwje ELSE 0 END kzlb_fwje
+FROM 
+(SELECT  left(t.ssdq,9) ssdq ,t.rylb_code,a.fwje FROM t_pgdx t
+LEFT JOIN t_fwxmcf a
+ON t.id = a.pgdx_id
+LEFT JOIN t_yzdx b
+ON b.id = t.yzdxid
+WHERE t.deleted = 0 and b.lczt_code = 4
+) tmp ) aa
+
+4,mysql 关联表更新语法
+UPDATE t_fwjl t join t_pgdx b on t.pgdx_id = b.id 
+join b_lht_kh a on  a.sfzh=b.cardid 
+SET t.yhkh = a.kh ,t.khyh_code=a.khh
+
+
+5,--计算两点之间的距离(经度,纬度)--sql函数(mysql)
+ALTER FUNCTION [dbo].[fnGetDistance](@LatBegin REAL, @LngBegin REAL, @LatEnd REAL, @LngEnd REAL) RETURNS FLOAT  
+  AS  
+BEGIN  
+  --距离(千米)  
+  DECLARE @Distance REAL  
+  DECLARE @EARTH_RADIUS REAL  
+  SET @EARTH_RADIUS = 6370693.5   
+  DECLARE @RadLatBegin REAL,@RadLatEnd REAL,@RadLatDiff REAL,@RadLngDiff REAL  
+  SET @RadLatBegin = @LatBegin *PI()/180.0    
+  SET @RadLatEnd = @LatEnd *PI()/180.0    
+  SET @RadLatDiff = @RadLatBegin - @RadLatEnd    
+  SET @RadLngDiff = @LngBegin *PI()/180.0 - @LngEnd *PI()/180.0     
+  SET @Distance = 2 *ASIN(SQRT(POWER(SIN(@RadLatDiff/2), 2)+COS(@RadLatBegin)*COS(@RadLatEnd)*POWER(SIN(@RadLngDiff/2), 2)))  
+  SET @Distance = @Distance * @EARTH_RADIUS    
+  --SET @Distance = Round(@Distance * 10000, 3) / 10000    
+  RETURN @Distance 
+END  
+
+
+
