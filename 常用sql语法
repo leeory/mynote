@@ -93,4 +93,20 @@ BEGIN
 END  
 
 
-
+6,导入数据用:(把excel数据表导入到数据库的一张临时表中,然后再插入到正式表中)
+INSERT INTO t_yzdx (deleted,create_time,update_time,version,address,cardid,ssdq, xm,xjzd,ddywzn_code ,fflb_code,hjszd_code,lczt_code,rylb_code,sfdj_code,sfgl_code,shyj_code,spyj_code,whcd_code,hjh,hzxm,is_dead_code,zmcl)
+SELECT 0,NOW(),NOW(),0,tmp.zz,tmp.sfz,tmp.org_code,tmp.xm,tmp.xjd1,tmp.ywzn1,'1',hjszd1,'8',rylb1,sfdj1,sfgl1,'1','1',whcd1,hjh,hzxm ,tmp.sfsw,''
+FROM
+(
+SELECT t.* ,o.org_code,o.org_name, o1.org_code xjd1,v1.CODE rylb1 ,V2.CODE whcd1 ,V3.code ywzn1,v4.code sfgl1,v5.code sfdj1,v6.CODE hjszd1  FROM b_lht_zcsj t
+LEFT JOIN s_org o 
+ON left(t.ssdq,4) = left(o.org_name,4)
+LEFT JOIN s_org o1
+ON left(t.xjd,4) = left(o1.org_name,4)
+LEFT JOIN v_dicitems v1 ON t.rylb = v1.NAME  AND v1.DCODE = 'RY'
+LEFT JOIN v_dicitems v2 ON t.whcd = v2.NAME AND v2.DCODE = 'WHCD'
+LEFT JOIN v_dicitems V3 ON t.ddywzn = V3.NAME AND V3.DCODE = 'YW'
+LEFT JOIN v_dicitems v4 ON t.sfgl = v4.NAME AND V4.DCODE = 'SF'
+LEFT JOIN v_dicitems v5 ON t.sfdj = v5.NAME AND V5.DCODE = 'SF'
+LEFT JOIN v_dicitems v6 ON t.hjszd = v6.NAME AND v6.DCODE = 'HJSZD'
+)tmp 
