@@ -1,0 +1,542 @@
+package com.simple.webService;
+import java.io.IOException;
+import java.net.URL;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.Iterator;
+
+import org.dom4j.Document;
+import org.dom4j.DocumentException;
+import org.dom4j.DocumentHelper;
+import org.dom4j.Element;
+import org.dom4j.QName;
+
+import cn.com.webxml_cz.IMessageAPI;
+import cn.com.webxml_cz.MessageAPI;
+
+import com.simple.sst.connection.DatabaseConnection;
+import com.simple.sst.util.Util;
+public class WebService {
+    /**
+     *生成身份认证信息
+     */
+    public static String buildValidate(){//TODO 生成身份认证信息
+		String xml = "";//生成身份认证的信息xml
+		Document doc = DocumentHelper.createDocument();
+		Element root = doc.addElement(new QName("ValidationRequestMessage"));
+		Element Header = root.addElement(new QName("Header"));
+		Header.addElement(new QName("Type")).addText("KDSoft.DEP.MessageParser.ValidationRequestMessage");
+		Header.addElement(new QName("Version")).addText("1");
+		
+		Element Body = root.addElement(new QName("Body"));
+		Body.addElement(new QName("AppGuid")).addText("16b4e952-4f03-46b4-b4c2-570f2ecb14bf");
+		Body.addElement(new QName("Password")).addText("jsw2014!@#");
+		Body.addElement(new QName("UserName")).addText("jsw");
+		xml = doc.asXML().toString();
+		System.out.println("身份验证:Invoking validate...");
+		final javax.xml.namespace.QName SERVICE_NAME = new javax.xml.namespace.QName("http://tempuri.org/", "MessageAPI");
+		URL wsdlURL = MessageAPI.WSDL_LOCATION;
+		MessageAPI ss = new MessageAPI(wsdlURL, SERVICE_NAME);
+	        IMessageAPI port = ss.getBasicHttpBindingIMessageAPI();
+		java.lang.String _validate__return = port.validate(xml);
+		com.simple.webService.WebService.getValidate(_validate__return);
+		return xml;
+    }
+    
+    /**
+     * 解析身份认证返回的信息
+     * @return
+     */
+    public static String getValidate(String xml){//TODO 解析身份认证返回的信息
+	 try {
+	    Document doc = DocumentHelper.createDocument();
+	    doc = DocumentHelper.parseText(xml);// 将字符串转为XML
+	    Element rootElt = doc.getRootElement(); // 获取根节点
+	    Iterator header = rootElt.elementIterator("Header"); // 获取根节点下的子节点head
+	    // 遍历head节点
+	    String Code = ""; 
+	    while (header.hasNext()) {
+		Element recordEle = (Element) header.next();
+		String Type = recordEle.elementTextTrim("Type");// 拿到Header节点下的子节点Type值
+		String Version = recordEle.elementTextTrim("Version");
+		Code = recordEle.elementTextTrim("Code");
+		String Description = recordEle.elementTextTrim("Description");
+		System.out.println("Type:" + Type+"\nVersion:"+Version+"\nCode:"+Code+"\nDescription:"+Description);
+	    }
+	    //遍历body节点
+	    Iterator body = rootElt.elementIterator("Body");
+	    String Token = "";
+	    String UserName = "";
+	    while(body.hasNext()){
+		Element BodyEle = (Element) body.next();
+		Iterator userToken = BodyEle.elementIterator("UserToken");
+		while(userToken.hasNext()){
+		    Element recordEle = (Element) userToken.next();
+		    UserName = recordEle.elementTextTrim("UserName");
+		    Token = recordEle.elementTextTrim("Token");
+		    System.out.println("UserName:"+UserName+"\nToken:"+Token);
+		}
+	    }
+	    try {
+		if("200".equals(Code)){
+		    System.out.println("推送数据:Invoking sendData...");
+		    buildXmlData(Token,UserName);//身份验证成功后推送信息
+		}
+	    } catch (IOException e) {
+		e.printStackTrace();
+	    }
+	} catch (DocumentException e) {
+	    e.printStackTrace();
+	} 
+	return xml;
+    }
+    
+    /**
+     * 生成推送的数据格式xml
+     * @return
+     * @throws IOException 
+     */
+    public static void buildXmlData(String token,String userName) throws IOException{//TODO 生成推送的数据格式xml
+//	File xmlfile=new File("D://test.xml");//xml文件保存路径
+//	if(xmlfile.exists()){
+//	    xmlfile.createNewFile();
+//	}
+//	FileOutputStream fos = new FileOutputStream(xmlfile);
+//	OutputFormat format = OutputFormat.createPrettyPrint();
+//	format.setEncoding("gbk");
+//	XMLWriter writer =  new XMLWriter(fos,format);
+	
+	String dateTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());//当前时间
+	String dateTime1 = new SimpleDateFormat("yyyy-MM-dd").format(new Date());//当前时间1
+	String ssdq = "";//department所属地区
+	String lczt = "";//流程状态
+	String sqrxmm = "";//申请人男
+	String sqrxmw = "";//申请人姓名 女
+	String xjzdz = "";//申请人地址
+	String sfzhmm = "";//身份证号码
+	String lxdh = "";//手机号码
+	String lxdhm = "";//联系电话
+	String slrid = "";//受理人id
+	String slsj = "";//受理时间
+	String csrid = "";//初审人id
+	String cssj = "";//初审时间
+	String gsrid = "";//公示人id
+	String gssj = "";//公示时间
+	String nsprid = "";//你审批人id
+	String nspsj = "";//拟审批时间
+	String sprid = "";//审批人id
+	String spsj = "";//审批时间
+	String s2 = "";//入库时间
+	String id = "";//主表id
+	Connection con = null;
+	PreparedStatement pst = null;
+	ResultSet rs = null;
+	String sql = "";
+	try{
+	    con = DatabaseConnection.getConnection();
+	    sql = "select * from (select mytable.*,RowNumber=ROW_NUMBER() OVER (order by s2) from (select * from page_zgzsysp where s3 = 1 and datediff(dd,s2,'2014-10-08')<=0 and ssdq !='3204' and lczt = 'LCZT07' and ssdq not like '320481%' and isSend is null) as mytable) as mydataSources where RowNumber > 0 and RowNumber <= 1";
+	    pst = con.prepareStatement(sql);
+	    rs = pst.executeQuery();
+	    while(rs.next()){
+		s2 = Util.safeVar(rs.getString("s2"));
+		ssdq = Util.safeVar(rs.getString("ssdq"));
+		lczt = Util.safeVar(rs.getString("lczt"));
+		sqrxmm = Util.safeVar(rs.getString("sqrxmm"));
+		sqrxmw = Util.safeVar(rs.getString("sqrxmw"));
+		xjzdz = Util.safeVar(rs.getString("xjzdz"));
+		sfzhmm = Util.safeVar(rs.getString("sfzhmm"));
+		lxdh = Util.safeVar(rs.getString("lxdh"));
+		lxdhm = Util.safeVar(rs.getString("lxdhm"));
+		id = Util.safeVar(rs.getString("s1"));
+		slrid = Util.safeVar(rs.getString("slrid"));
+		slsj = Util.safeVar(rs.getString("slsj"));
+		csrid = Util.safeVar(rs.getString("csrid"));
+		cssj = Util.safeVar(rs.getString("cssj"));
+		gsrid = Util.safeVar(rs.getString("gsrid"));
+		gssj = Util.safeVar(rs.getString("gssjsj"));
+		//nsprid = Util.safeVar(rs.getString("nsprid"));
+		//nspsj = Util.safeVar(rs.getString("nspsj"));
+		sprid = Util.safeVar(rs.getString("sprid"));
+		spsj = Util.safeVar(rs.getString("spsj"));
+		String cnrq = "";//承诺日期
+		SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"); 
+		try { 
+		    if("".equals(slsj)){
+			slsj = s2;
+		    }
+		    Date myDate = formatter.parse(slsj); 
+		    Calendar c = Calendar.getInstance(); 
+		    c.setTime(myDate); 
+		    c.add(Calendar.DATE, 45); 
+		    myDate = c.getTime(); 
+		    cnrq = formatter.format(myDate); 
+		} catch (ParseException e1) { 
+		    e1.printStackTrace(); 
+		}  
+
+		//所属地区
+		String ssdq_q = "";//区
+		String ssdq_q2 = "";//区
+		if(!"".equals(ssdq)){
+		    if(ssdq.length() >= 9){
+		    	ssdq = ssdq.substring(0,9);
+		    }
+		    if(ssdq.length() >= 6){
+		    	ssdq_q = ssdq.substring(0,6);
+		    }
+		    sql = "select b3 from td_areaCode where b1 = '"+ssdq+"'";
+		    pst = con.prepareStatement(sql);
+		    ResultSet rs_ssdq = pst.executeQuery();
+		    while(rs_ssdq.next()){
+		    	ssdq = Util.safeVar(rs_ssdq.getString("b3"));
+		    }
+		    sql = "select b3 from td_areaCode where b1 = '"+ssdq_q+"'";
+		    pst = con.prepareStatement(sql);
+		    ResultSet rs_ssdq_q = pst.executeQuery();
+		    while(rs_ssdq_q.next()){
+		    	ssdq_q = Util.safeVar(rs_ssdq_q.getString("b3"));
+		    }
+		    ssdq_q2 = ssdq_q;
+		    ssdq_q = ssdq_q+ssdq;
+		    DatabaseConnection.closeResult(rs_ssdq);
+		}
+		String department = ssdq_q+"计生办";
+		String orignalOrgID = "147";
+		String orignalAffairID = "8300";
+		if("溧阳市".equals(ssdq_q2)){
+//			if("天目湖".equals(ssdq)){
+//				department = "计生窗口";
+//			}else{
+//				department = "计生办";
+//			}
+			if("溧城镇".equals(ssdq)){
+				orignalOrgID = "958";
+				orignalAffairID = "11948";
+			}else if("天目湖".equals(ssdq)){
+				orignalOrgID = "959";
+				orignalAffairID = "11912";
+			}else if("上黄镇".equals(ssdq)){
+				orignalOrgID = "961";
+				orignalAffairID = "12013";
+			}else if("戴埠镇".equals(ssdq)){
+				orignalOrgID = "962";
+				orignalAffairID = "12031";
+			}else if("别桥镇".equals(ssdq)){
+				orignalOrgID = "963";
+				orignalAffairID = "12048";
+			}else if("埭头镇".equals(ssdq)){
+				orignalOrgID = "960";
+				orignalAffairID = "12447";
+			}else if("竹箦镇".equals(ssdq)){
+				orignalOrgID = "964";
+				orignalAffairID = "12208";
+			}else if("上兴镇".equals(ssdq)){
+				orignalOrgID = "965";
+				orignalAffairID = "11926";
+			}else if("南渡镇".equals(ssdq)){
+				orignalOrgID = "966";
+				orignalAffairID = "12128";
+			}else if("社渚镇".equals(ssdq)){
+				orignalOrgID = "967";
+				orignalAffairID = "12068";
+			}
+		}
+		int j = 0;//循环(推送次数)次数
+		Document doc = DocumentHelper.createDocument();
+		Element root = doc.addElement(new QName("SendDataRequestMessage")); 
+		//root1
+		Element Header = root.addElement(new QName("Header")); 
+		Header.addElement(new QName("Type")).addText("KDSoft.DEP.MessageParser.SendDataRequestMessage");
+		Header.addElement(new QName("Version")).addText("1");
+		Element Body = root.addElement(new QName("Body"));
+		Body.addElement(new QName("BatchName")).addText("第"+(j+1)+"次推送");
+		String name = "";//当前环节处理人的姓名
+		if(!"".equals(sprid)){
+		    pst = con.prepareStatement("select * from t_user where s1 = "+sprid);
+		    ResultSet rs_user = pst.executeQuery();
+		    while(rs_user.next()){
+			name = Util.safeVar(rs_user.getString("userName"));
+		    }
+		    DatabaseConnection.closeResult(rs_user);
+		}
+		Element Data = Body.addElement(new QName("Data"));
+		Element Information = Data.addElement(new QName("Information"));
+		Element BodyXml = Information.addElement(new QName("BodyXml"));
+		Element InfoApply = BodyXml.addElement(new QName("InfoApply"));
+		Element BasicInfo = InfoApply.addElement(new QName("BasicInfo"));
+		BasicInfo.addElement(new QName("InternalNo")).addText(id);//部门内部办件编号(无)OK
+		BasicInfo.addElement(new QName("ItemID")).addText("JS040000RK-XK-0001");//权力编码             OK
+		BasicInfo.addElement(new QName("ItemName")).addText("再生育一个孩子审批");//权力名称 OK
+		BasicInfo.addElement(new QName("OrgID")).addText("JS040000RK");//部门编码                               OK
+		BasicInfo.addElement(new QName("OrgName")).addText("计生委");//部门名称                                   OK
+		BasicInfo.addElement(new QName("UpdateDate")).addText(dateTime);//信息更新时间		 OK
+		BasicInfo.addElement(new QName("ProjectName")).addText("照顾再生育审批");//项目名称            OK
+		BasicInfo.addElement(new QName("Department")).addText(department);//业务处室OK
+		BasicInfo.addElement(new QName("ApplyTime")).addText(s2);//办件提交时间		OK
+		BasicInfo.addElement(new QName("ApplyWay")).addText("1");//办件提交方式	(网上)		OK
+		BasicInfo.addElement(new QName("WarningDate"));//预警日期
+		BasicInfo.addElement(new QName("WarningDays")).addText("1");//预警天数
+		BasicInfo.addElement(new QName("PromisedDate")).addText(cnrq);//承诺日期	OK
+		BasicInfo.addElement(new QName("PromisedDays")).addText("45");//承诺天数	OK
+		BasicInfo.addElement(new QName("PromiseWorkDayType")).addText("1");//(无)
+		BasicInfo.addElement(new QName("ExpireDate")).addText(cnrq);//法定完成日期(无)OK
+		BasicInfo.addElement(new QName("LegalDays")).addText("45");//法定工作日(无)
+		BasicInfo.addElement(new QName("FinishTime")).addText(spsj);//完成日期(无)OK
+		BasicInfo.addElement(new QName("ServiceFee")).addText("无");//服务收费OK
+		BasicInfo.addElement(new QName("AffairType")).addText("1");//事项类型(无)
+		BasicInfo.addElement(new QName("AllProcesses")).addText("受理-初审-公示-审批通过");//办件流程 OK
+		BasicInfo.addElement(new QName("ProcessStatus")).addText("0");//流程状态0		OK
+		BasicInfo.addElement(new QName("InstanceType")).addText("1");//办件类型		OK
+		BasicInfo.addElement(new QName("CurrentOperatorID")).addText(sprid);//当前环节处理人的ID	OK
+		BasicInfo.addElement(new QName("CurrentOperatorName")).addText(name);//当前环节处理人的姓名OK
+		BasicInfo.addElement(new QName("CurrentProcessType")).addText("6");//当前环节类型6	(送达环节)OK
+		BasicInfo.addElement(new QName("AffairInstanceStatus")).addText("送达环节");//当前环节的名称 审批结束OK
+		BasicInfo.addElement(new QName("Content")).addText("再生育申请");//申请名称			OK
+		
+		Element Form = BasicInfo.addElement(new QName("Form"));//Form 申请表格内容
+		Element FormData = Form.addElement(new QName("FormData"));
+		//循环
+		for(int i = 0;i < 2;i++){
+		    Element data = FormData.addElement(new QName("Data"));
+		    data.addElement(new QName("Key")).addText("");
+		    data.addElement(new QName("Name")).addText("");
+		    data.addElement(new QName("Value")).addText("");
+		}
+		//Stuff 提交材料信息						OK
+		Element Stuff = BasicInfo.addElement(new QName("Stuff"));
+		Element DocumentData = Stuff.addElement(new QName("DocumentData"));
+		sql = "select * from page_zgzsysp_slcl where zsyS1 ="+id;
+		pst = con.prepareStatement(sql);
+		ResultSet rs_cl = pst.executeQuery();
+		while(rs_cl.next()){
+		    String s1 = Util.safeVar(rs_cl.getString("s1"));
+		    String clname = Util.safeVar(rs_cl.getString("clname"));
+		    System.out.println(s1+"====="+clname);
+		    Element Document = DocumentData.addElement(new QName("Document"));
+		    Document.addElement(new QName("Document_ID")).addText(s1);
+		    Document.addElement(new QName("Document_Name")).addText(clname);
+		    Document.addElement(new QName("File_Name")).addText("");
+		    Document.addElement(new QName("File_Content")).addText("");
+		}
+		DatabaseConnection.closeResult(rs_cl);
+		
+		BasicInfo.addElement(new QName("DocumentPrints")).addText("1");//文书打印次数
+		BasicInfo.addElement(new QName("MustSubmitMaterial")).addText("0");//必须提交材料数
+		BasicInfo.addElement(new QName("AlreadySubmitMaterial")).addText("5");//已提交的材料数
+		BasicInfo.addElement(new QName("OrignalOrgID")).addText(orignalOrgID);//在三合一平台中的部门编号 OK
+		BasicInfo.addElement(new QName("OrignalAffairID")).addText(orignalAffairID);//在三合一平台中的事项编号OK
+		BasicInfo.addElement(new QName("AffairIsRisk")).addText("False");//是否风险点事项
+		BasicInfo.addElement(new QName("IsDeleted")).addText("0");//是否作废
+		BasicInfo.addElement(new QName("Remark")).addText("备注");//备注
+		//Applicant 申请人信息						OK
+		Element Applicant = BasicInfo.addElement(new QName("Applicant"));
+		Applicant.addElement(new QName("Name")).addText(sqrxmm+","+sqrxmw);//申请者姓名	OK
+		Applicant.addElement(new QName("ApplicantType")).addText("0");//申请者类型OK
+		Applicant.addElement(new QName("ApplicantCode"));//组织机构代码	OK
+		Applicant.addElement(new QName("Proposer")).addText(sqrxmm);//联系人姓名	OK
+		Applicant.addElement(new QName("ApplicantAddress")).addText(xjzdz);//申请者联系地址OK
+		Applicant.addElement(new QName("ApplicantZipCode")).addText("");//申请者邮编	OK
+		Applicant.addElement(new QName("ApplicantPhone")).addText(lxdhm);//联系电话	OK
+		Applicant.addElement(new QName("ApplicantMobile")).addText(lxdh);//手机	OK
+		Applicant.addElement(new QName("ApplicantPaperType")).addText("0");//证件名称	OK
+		Applicant.addElement(new QName("ApplicantPaperNumber")).addText(sfzhmm);//证件号码OK
+		Applicant.addElement(new QName("ApplicantEmail")).addText("");//电子邮件OK
+		//Processes 行政权力办件过程信息
+		Element Processes = InfoApply.addElement(new QName("Processes"));
+		//循环
+		String blcs = "";//办理处室
+		for(int i = 0;i < 4;i++){
+		    String gwmc = "受理";//岗位名称
+		    if(i == 1){
+			gwmc = "初审";
+			slrid = csrid;
+			slsj = cssj;
+		    }else if(i == 2){
+			gwmc = "公示";
+			//slrid = gsrid;
+			slsj = gssj;
+		    }else if(i == 3){
+			gwmc = "审批通过";
+			//slrid = sprid;
+			slsj = spsj;
+		    }
+		    if("".equals(slsj)){
+			slsj = s2;
+		    }
+		    String areaCode_q = "";//区
+		    String areaCode = "";//所属地区
+		    String userName_ = "";//用户名
+		    if(!"".equals(slrid)){
+			pst = con.prepareStatement("select * from t_user where s1 = "+slrid);
+		    	ResultSet rs_user = pst.executeQuery();
+		    	while(rs_user.next()){
+		    	    areaCode = Util.safeVar(rs_user.getString("regAreaId"));
+		    	    userName_ = Util.safeVar(rs_user.getString("userName"));
+		    	}
+		    	DatabaseConnection.closeResult(rs_user);
+		    }
+		    if(!"".equals(areaCode)){
+		    	if(areaCode.length() >=6){
+					sql = "select b3 from td_areaCode where b1 = '"+areaCode.subSequence(0, 6)+"'";
+					pst = con.prepareStatement(sql);
+					ResultSet rs_areaCode_q = pst.executeQuery();
+					while(rs_areaCode_q.next()){
+						areaCode_q = Util.safeVar(rs_areaCode_q.getString("b3"));
+					}
+				}
+				sql = "select b3 from td_areaCode where b1 = '"+areaCode+"'";
+				pst = con.prepareStatement(sql);
+				ResultSet rs_ssdq = pst.executeQuery();
+				while(rs_ssdq.next()){
+				    areaCode = Util.safeVar(rs_ssdq.getString("b3"));
+				}
+				
+				DatabaseConnection.closeResult(rs_ssdq);
+		    }
+		    blcs = areaCode_q+areaCode+"计生办";
+		    if("审批通过".equals(gwmc)){
+		    	blcs = areaCode_q+ssdq+"计生办";
+		    	System.out.println("a"+blcs);
+		    }
+		    if("计生办".equals(blcs)){
+		    	blcs = ssdq_q+"计生办";
+		    	System.out.println("b"+blcs);
+		    }
+		    Element Process = Processes.addElement(new QName("Process"));
+		    Process.addElement(new QName("UpdateDate")).addText(dateTime);//信息更新时间OK
+		    Process.addElement(new QName("TacheName")).addText(gwmc);//岗位名称OK
+		    Process.addElement(new QName("Department")).addText(blcs);//办理处室
+		    Process.addElement(new QName("UserName")).addText(userName_);//办理人员姓名	OK
+		    Process.addElement(new QName("Status")).addText("5");//岗位状态OK
+		    Process.addElement(new QName("Promise")).addText("10");//承诺时限OK
+		    Process.addElement(new QName("Note")).addText("同意");//处理意见	OK
+		    Process.addElement(new QName("Attachment"));//处理附件
+		    Process.addElement(new QName("ProcessTime")).addText(slsj);//处理时间OK
+		    Process.addElement(new QName("Type")).addText("3");//环节类型OK
+		    Process.addElement(new QName("IsRisk")).addText("False");//是否风险点OK
+		    Process.addElement(new QName("RiskType"));//风险点类型
+		    Process.addElement(new QName("RiskDescription"));//风险点描述
+		    Process.addElement(new QName("RiskResult"));//风险点措施
+		}
+		
+		Element Result = InfoApply.addElement(new QName("Result"));//Result 行政权力办件结果
+		Result.addElement(new QName("UpdateDate")).addText(dateTime);//信息更新时间OK
+		Result.addElement(new QName("Status")).addText("2");//Status 办结状态OK
+		Result.addElement(new QName("Note")).addText("审批结束");//办结意见
+		Result.addElement(new QName("FinishTime")).addText(slsj);//办结时间OK
+		Element Attachment = Result.addElement(new QName("Attachment")).addText("");//办结附件OK
+		Element documentData = Attachment.addElement(new QName("DocumentData"));
+		//循环
+		for(int i = 0;i < 2;i++){//======================
+		    Element Document = documentData.addElement(new QName("Document"));
+		    Document.addElement(new QName("Document_ID")).addText("");
+		    Document.addElement(new QName("Document_Name")).addText("");
+		    Document.addElement(new QName("File_Name")).addText("");
+		    Document.addElement(new QName("File_Content")).addText("");
+		}
+		Information.addElement(new QName("CreatedBy")).addText("计生委");//OK
+		Information.addElement(new QName("CreatedTime")).addText(dateTime1+"T00:00:00");//0001-01-01T00:00:00OK
+		Information.addElement(new QName("Summary")).addText("照顾再生育审批数据推送");//OK
+		Information.addElement(new QName("UniqueID")).addText("0cd52c9f-4024-4dfe-b2c0-613a6455c1af");//OK
+		
+		Element RequestValidation = Body.addElement(new QName("RequestValidation"));//RequestValidation
+		RequestValidation.addElement(new QName("AppID")).addText("16b4e952-4f03-46b4-b4c2-570f2ecb14bf");//OK
+		RequestValidation.addElement(new QName("DataSourceName")).addText("审批数据交换");//OK
+		Element UserToken = RequestValidation.addElement(new QName("UserToken"));
+		UserToken.addElement(new QName("Token")).addText(token);//OK
+		UserToken.addElement(new QName("UserName")).addText(userName);//OK
+		String code = sendData(doc.asXML().toString());
+		if("200".equals(code)){
+		    pst = con.prepareStatement("update page_zgzsysp set isSend = 1 where s1="+id);
+		    pst.executeUpdate();
+		}
+		//writer.write(doc);
+	    }
+	}catch(SQLException e){
+	    e.printStackTrace();
+	}finally{
+	    DatabaseConnection.clearResource(con, pst, rs);
+	}
+    }
+    
+    /**推送数据*/
+    public static String sendData(String xml){
+	final javax.xml.namespace.QName SERVICE_NAME = new javax.xml.namespace.QName("http://tempuri.org/", "MessageAPI");
+	URL wsdlURL = MessageAPI.WSDL_LOCATION;
+      
+        MessageAPI ss = new MessageAPI(wsdlURL, SERVICE_NAME);
+        IMessageAPI port = ss.getBasicHttpBindingIMessageAPI();
+        String sendData_return = port.sendData(xml);
+        System.out.println("解析推送返回的数据...");
+        String code = splitData(sendData_return);
+	return code;
+    }
+    
+    /**
+     * 解析推送返回的数据
+     * @param xml
+     * @return
+     */
+    public static String splitData(String xml){//TODO 解析推送返回的数据
+	try {
+	    Document doc = DocumentHelper.createDocument();
+	    doc = DocumentHelper.parseText(xml);// 将字符串转为XML
+	    Element rootElt = doc.getRootElement(); // 获取根节点
+	    Iterator header = rootElt.elementIterator("Header"); // 获取根节点下的子节点head
+	    // 遍历head节点
+	    String Code = "";
+	    while (header.hasNext()) {
+		Element recordEle = (Element) header.next();
+		String Type = recordEle.elementTextTrim("Type");// 拿到Header节点下的子节点Type值
+		String Version = recordEle.elementTextTrim("Version");
+		Code = recordEle.elementTextTrim("Code");
+		String Description = recordEle.elementTextTrim("Description");
+		System.out.println("Type:" + Type+"\nVersion:"+Version+"\nCode:"+Code+"\nDescription:"+Description);
+	    }
+	    //遍历body节点
+	    Iterator body = rootElt.elementIterator("Body");
+	    while(body.hasNext()){
+		Element BodyEle = (Element) body.next();
+		Iterator Success = BodyEle.elementIterator("Success");
+		String Failed = BodyEle.elementTextTrim("Failed");
+		while(Success.hasNext()){
+		    Element recordEle = (Element) Success.next();
+		    String string = recordEle.elementTextTrim("string");
+		    System.out.println("string:"+string);
+		}
+		System.out.println("Failed:"+Failed);
+	    }
+	    if("200".equals(Code)){
+		System.out.println("推送成功！");
+	    }else{
+		System.out.println("推送失败！");
+	    }
+	    return Code;
+	} catch (DocumentException e) {
+	    e.printStackTrace();
+	} 
+	return "";
+    }
+    
+   
+    
+    
+    
+    
+    
+    
+    
+    //TODO 测试
+    public static void main(String[] args) throws Exception {
+    	buildValidate();//测试身份验证和推送接口
+    }
+    
+}
+
+
